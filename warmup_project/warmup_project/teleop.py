@@ -13,38 +13,17 @@ from geometry_msgs.msg import Twist
 
 
 class TeleopNode(Node):
-
-
-    def getKey(self):
-        """
-        Tracks keyboard input.
-
-        Returns
-            a String key
-        """
-        tty.setraw(sys.stdin.fileno())
-        select.select([sys.stdin], [], [], 0)
-        key = sys.stdin.read(1)
-        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.settings)
-        return key
-
-
     """
     
-    This is a node which stops the motors when the bump sensor is triggered.
+    This is a node which controls the robot's movement using keyboard input.
     
-    The class should allow the vehicle to move forward at a slow rate, until the
-    bump sensor is triggered, in which case the robot should stop.
+    The class should allow the vehicle to move forward, backward, and rotate
+    both clockwise and counterclockwise.
     
     Publishers Needed:
-        - Twist cmd_vel message; which commands vehicle velocity
-    Subscribers Needed:
-        - Bump bump message handling; which listens for the bump sensor data
-
-
-
-    
+        - Twist cmd_vel message; which commands vehicle velocity    
     """
+
     def __init__(self):
         """Initializes the class."""
         super().__init__("teleop_node") # node names should be unique
@@ -52,13 +31,21 @@ class TeleopNode(Node):
         self.create_timer(0.1, self.run_loop)
         # Define settings for getKey()
         self.settings = termios.tcgetattr(sys.stdin)
-
-        '''
-        Create a publisher for the motors.
-        Method create_publisher takes a message type, the message topic name, and a filter queue.
-        A publisher will not publish anything once initialized, it must be called.
-        '''
+        # Initialize the publisher for cmd_vel
         self.publisher = self.create_publisher(Twist, 'cmd_vel', 10)
+    
+    def getKey(self):
+        """
+        Tracks keyboard input.
+
+        Returns
+            String key that represents the user input.
+        """
+        tty.setraw(sys.stdin.fileno())
+        select.select([sys.stdin], [], [], 0)
+        key = sys.stdin.read(1)
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.settings)
+        return key
 
     def run_loop(self):
         """Controls the movement of the robot through teleoperation."""
