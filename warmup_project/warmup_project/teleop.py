@@ -16,6 +16,12 @@ class TeleopNode(Node):
 
 
     def getKey(self):
+        """
+        Tracks keyboard input.
+
+        Returns
+            a String key
+        """
         tty.setraw(sys.stdin.fileno())
         select.select([sys.stdin], [], [], 0)
         key = sys.stdin.read(1)
@@ -44,6 +50,7 @@ class TeleopNode(Node):
         super().__init__("teleop_node") # node names should be unique
         # Create a timer that runs the robot motors
         self.create_timer(0.1, self.run_loop)
+        # Define settings for getKey()
         self.settings = termios.tcgetattr(sys.stdin)
 
         '''
@@ -54,30 +61,31 @@ class TeleopNode(Node):
         self.publisher = self.create_publisher(Twist, 'cmd_vel', 10)
 
     def run_loop(self):
-        """Keeps the robot moving unless a bump is registered."""
+        """Controls the movement of the robot through teleoperation."""
 
         key = self.getKey()
         print(key)
         
     
-        # Create a Twist message to describe the robot motion
+        # Create a Twist message to describe the robot motion.
         vel = Twist()
-        
+        # If w key is pressed, go forward.
         if key == "w":
             vel.linear.x = 0.2
             vel.angular.z = 0.0
+        # If s key is pressed, go backward.
         elif key == "s":
             vel.linear.x = -0.2
             vel.angular.z = 0.0
+        # If a key is pressed, turn to counterclockwise.
         elif key == "a":
             vel.linear.x = 0.0
             vel.angular.z = 1.0
+        # If d key is pressed, turn clockwise.
         elif key == "d":
             vel.linear.x = 0.0
             vel.angular.z = -1.0
-        elif key == "x":
-            vel.linear.x = 0.0
-            vel.angular.z = 0.0
+        # If Ctrl+C is pressed, terminate the node.
         elif key == "\x03":
             quit()
     
