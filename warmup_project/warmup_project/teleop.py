@@ -21,7 +21,7 @@ class TeleopNode(Node):
     both clockwise and counterclockwise.
     
     Publishers Needed:
-        - Twist cmd_vel message; which commands vehicle velocity    
+        - Twist cmd_vel message, which commands vehicle velocity.
     """
 
     def __init__(self):
