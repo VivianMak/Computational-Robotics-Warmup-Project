@@ -1,20 +1,23 @@
 """WALL FOLLOWING - This script is for publishing and subscribing to ROS msgs in Python."""
 
+import math
+
 import rclpy
 from rclpy.node import Node
-
-import math
 
 from sensor_msgs.msg import LaserScan
 from geometry_msgs.msg import Twist
 
-from rclpy.parameter import Parameter
-from rcl_interfaces.msg import SetParametersResult
-from rclpy.qos import qos_profile_sensor_data
-
 
 class wallFollowing(Node):
-    """Sends message that the robot detects a wall"""
+    """
+    This node drives the robot along the wall in a parallel line
+
+    Publishers:
+        - Twist cmd_vel message: commands velocity and rotation
+    SubscribersL
+        - Laserscan scan message: gives the distance from a lidar scan
+    """
 
     def __init__(self):
         """Initializes the class"""
@@ -24,8 +27,13 @@ class wallFollowing(Node):
 
         # Initialize variables
         self.align_state = False
-        self.turn_angle = 0
+
+        self.angle_error = 0
         self.slope = 0
+
+        self.heading = ""
+
+        # self.heading_info = {}
 
         # Create a timer -- runs until the laser data sense that it is close to a wall
         self.timer = self.create_timer(0.1, self.run_loop)
@@ -39,39 +47,32 @@ class wallFollowing(Node):
     def process_scan(self, msg):
         """
         Callback for handling a wall detector sensor input.
-
         Args:
-
+            - msg (Laserscan): a Laserscan type message from the subscriber
         """
-        # Initialize variables
-        theta = math.radians(45)
-        index1 = 270
-        index2 = 271
+        # Placing Neato to the right of the wall
+        theta = math.radians(315)  # need to put neato to the right of the wall
+        index1 = 315
+        index2 = 310
+        if msg.ranges[315] < msg.ranges[240]:
+            self.heading = "towards"
+        else:
+            self.heading = "away"
 
-        # Find two points from list of ranges and convert them to x and y coordinates
+        # Convert point to coordinates
         x1 = msg.ranges[index1] * math.cos(theta)
         y1 = msg.ranges[index1] * math.sin(theta)
-        x2 = msg.ranges[index2] * math.cos(theta + msg.angle_increment)
-        y2 = msg.ranges[index2] * math.sin(theta + msg.angle_increment)
-
-        # debug
-        print("The ranges on left side is:")
-        print(msg.ranges[90])
-
-        # print(f"the angle min is: {msg.angle_min}")
-        # print(f"the angle max is: {msg.angle_max}")
-        # print(f"the angle increment is: {msg.angle_increment}")
+        x2 = msg.ranges[index2] * math.cos(theta + 5 * msg.angle_increment)
+        y2 = msg.ranges[index2] * math.sin(theta + 5 * msg.angle_increment)
 
         # Find the slope of the wall
         self.slope = (y2 - y1) / (x2 - x1)
 
-        # Find the angular error for the Neato to adjust
-        self.turn_angle = math.radians(180 - math.atan(self.slope))
+        # Angular Error
+        self.angle_error = math.atan(self.slope)
 
-        # print(f"the slope is {self.slope}")
-
-        # Process msg
-        if self.turn_angle != 0:
+        # Start aligning once the angle error is figured out
+        if self.angle_error > 0.8:
             self.align_state = True
 
     def run_loop(self):
@@ -79,27 +80,33 @@ class wallFollowing(Node):
         # Set the subscriber to be Twist type
         cmd_vel = Twist()
 
+        # print(math.degrees(self.angle_error))
+        print(self.wall_side)
+        # print(self.slope)
+        print(self.angle_error)
+
         # Initially set the forware velocity and angular state to 0
         if self.align_state is False:
-            cmd_vel.linear.x = 0.0
-            cmd_vel.angular.z = 0.0
+            cmd_vel.linear.x = 0.1
         else:
-            # cmd_vel.angular.z = -0.1
-            if self.slope < 0:
-                # Turn counterclockwise
-                cmd_vel.angular.z = 0.1
-            else:
-                # Turn clockwise
-                cmd_vel.angular.z = -0.1  # self.turn_angle / self.timer
-                cmd_vel.linear.x = 0.1
+            # Once parallel, stop turning
+            if self.slope <= 1.2 and self.slope >= 0.8:
+                self.align_state = False
+                print("STOPPPPPPPPPPPPPPPPPPPPPPPPPP")
 
-        # cmd_vel.linear.x = 0.1
+            if self.wall_side == "towards":
+                cmd_vel.angular.z = 0.1  # Turn counterclockwise
+                print("turn COUNTERCLOCKWISE")
+            else:
+                cmd_vel.angular.z = -0.1  # Turn clockwise
+            cmd_vel.linear.x = 0.1
+            print("turn CLOCKWISE")
 
         self.publisher.publish(cmd_vel)
 
 
 def main(args=None):
-    """ """
+    """Initialize our node, run it, cleanup on shut down"""
     rclpy.init(args=args)  # Initialize communication with ROS
     node = wallFollowing()  # Create our Node
     rclpy.spin(node)  # Run the Node until ready to shutdown
