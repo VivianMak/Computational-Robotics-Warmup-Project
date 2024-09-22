@@ -14,7 +14,6 @@ from geometry_msgs.msg import Twist
 
 class TeleopNode(Node):
     """
-    
     This is a node which controls the robot's movement using keyboard input.
     
     The class should allow the vehicle to move forward, backward, and rotate
