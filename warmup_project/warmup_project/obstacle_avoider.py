@@ -6,10 +6,6 @@ from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
 from geometry_msgs.msg import Twist
 
-from rclpy.parameter import Parameter
-from rcl_interfaces.msg import SetParametersResult
-from rclpy.qos import qos_profile_sensor_data
-
 
 class obstacleAvoidance(Node):
     """

@@ -33,8 +33,6 @@ class wallFollowing(Node):
 
         self.heading = ""
 
-        # self.heading_info = {}
-
         # Create a timer -- runs until the laser data sense that it is close to a wall
         self.timer = self.create_timer(0.1, self.run_loop)
 
@@ -51,13 +49,9 @@ class wallFollowing(Node):
             - msg (Laserscan): a Laserscan type message from the subscriber
         """
         # Placing Neato to the right of the wall
-        theta = math.radians(315)  # need to put neato to the right of the wall
-        index1 = 315
-        index2 = 310
-        if msg.ranges[315] < msg.ranges[240]:
-            self.heading = "towards"
-        else:
-            self.heading = "away"
+        theta = math.radians(45)
+        index1 = 45
+        index2 = 50
 
         # Convert point to coordinates
         x1 = msg.ranges[index1] * math.cos(theta)
@@ -69,38 +63,37 @@ class wallFollowing(Node):
         self.slope = (y2 - y1) / (x2 - x1)
 
         # Angular Error
-        self.angle_error = math.atan(self.slope)
+        self.angle_error = 90 - math.atan(self.slope)
 
-        # Start aligning once the angle error is figured out
-        if self.angle_error > 0.8:
+        # Start aligning once the angle error is greater than tolerance
+        if self.angle_error > 0.1:
             self.align_state = True
+
+        # Heading of Neato front -- wall always to the left
+        if self.slope > 0:
+            self.heading = "towards"
+        else:
+            self.heading = "away"
 
     def run_loop(self):
         """Move robot towards detected wall"""
+
         # Set the subscriber to be Twist type
         cmd_vel = Twist()
 
-        # print(math.degrees(self.angle_error))
-        print(self.wall_side)
-        # print(self.slope)
-        print(self.angle_error)
-
-        # Initially set the forware velocity and angular state to 0
         if self.align_state is False:
             cmd_vel.linear.x = 0.1
         else:
-            # Once parallel, stop turning
-            if self.slope <= 1.2 and self.slope >= 0.8:
+            # Check if trajectory is parallel
+            if self.angle_error <= 90.2 and self.angle_error >= 89.8:
                 self.align_state = False
-                print("STOPPPPPPPPPPPPPPPPPPPPPPPPPP")
 
-            if self.wall_side == "towards":
-                cmd_vel.angular.z = 0.1  # Turn counterclockwise
-                print("turn COUNTERCLOCKWISE")
+            # Align the Neato
+            if self.heading == "towards":
+                cmd_vel.angular.z = 0.1  # Turn clockwise
             else:
-                cmd_vel.angular.z = -0.1  # Turn clockwise
+                cmd_vel.angular.z = -0.1  # Turn COUNTERclockwise
             cmd_vel.linear.x = 0.1
-            print("turn CLOCKWISE")
 
         self.publisher.publish(cmd_vel)
 
