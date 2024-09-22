@@ -22,7 +22,9 @@ setup(
             "drive_square = warmup_project.drive_square:main",
             "teleop = warmup_project.teleop:main",
             "wall_follower = warmup_project.wall_follower:main",
+            "person_follower = warmup_project.person_follower:main",
             "obstacle_avoider = warmup_project.obstacle_avoider:main",
+            "finite_state_controller = warmup_project.finite_state_controller:main",
         ],
     },
 )
