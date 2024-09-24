@@ -1,15 +1,24 @@
-"""Obstacle Avoidance - This script is for publishing and subscribing to ROS msgs in Python."""
+"""Obstacle Avoidance - This behavior ."""
 
 import rclpy
 from rclpy.node import Node
-
 from sensor_msgs.msg import LaserScan
 from geometry_msgs.msg import Twist
 
 
-class obstacleAvoidance(Node):
+class ObstacleAvoider(Node):
     """
-    Sends message that robot
+    This is a node which controls the robot to drive forward and avoid bumping into
+    or crashing into obstacles.
+    
+    The class should allow the vehicle to track the location of the obstacle(s) in relation
+    to itself using its LiDAR sensor and re-orient itself to move away from them.
+    
+    Publishers Needed:
+        - Twist cmd_vel message, which commands vehicle velocity.
+    Subscribers Needed:
+        - LaserScan scan message, which reads the distance and angle of objects
+          around the vehicle.
     """
 
     def __init__(self):
@@ -39,8 +48,12 @@ class obstacleAvoidance(Node):
         self.sub = self.create_subscription(LaserScan, "scan", self.detect_scan, 10)
 
     def detect_scan(self, msg):
-        """Check if there is an obstacle near and turn until clearance"""
-
+        """
+        Callback for handling LaserScan /scan messages. Check if there is an obstacle
+        near and turn until clearance.
+        Input:
+            msg (LaserScan): a LaserScan type message from the subscriber.
+        """
         # Store scanned list from lidar
         self.right_scan = msg.ranges[-self.angle :]
         self.left_scan = msg.ranges[0 : self.angle]
@@ -59,7 +72,7 @@ class obstacleAvoidance(Node):
             self.turn_direction = "left"
 
     def run_loop(self):
-        """Neato continues going forward unless an obstacle is detected"""
+        """Drive Neato forward until it detects obstacles. Re-route Neato around obstacles."""
 
         cmd_vel = Twist()
 
@@ -84,7 +97,7 @@ class obstacleAvoidance(Node):
 
 def main(args=None):
     rclpy.init(args=args)  # Initialize communication with ROS
-    node = obstacleAvoidance()  # Create our Node
+    node = ObstacleAvoider()  # Create our Node
     rclpy.spin(node)  # Run the Node until ready to shutdown
     rclpy.shutdown()  # cleanup
 

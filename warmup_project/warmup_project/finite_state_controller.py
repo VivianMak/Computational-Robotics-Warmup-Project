@@ -4,9 +4,6 @@ from math import pi
 
 import rclpy
 from rclpy.node import Node
-
-from tf_transformations import euler_from_quaternion
-
 from sensor_msgs.msg import LaserScan
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
@@ -15,7 +12,7 @@ from nav_msgs.msg import Odometry
 from warmup_project.drive_square import convert_pose_to_xy_and_theta
 
 
-class finiteStateControl(Node):
+class FiniteStateControl(Node):
     """
     This node combines the two behaviors: driving in a square and person following
     The Neato will continously drive in a circle unless a person is detect.
@@ -31,7 +28,8 @@ class finiteStateControl(Node):
         # Create a timer
         self.create_timer(0.1, self.run_loop)
 
-        # Control state
+        # Intiialize state control variables
+        self.person_detect_state = False
         self.node_state = "drive_square_node"  # Start with driving in a square
 
         # Initialize the publisher for cmd_vel
@@ -43,28 +41,20 @@ class finiteStateControl(Node):
         # Initialize subscriber for LiDAR scan
         self.sub = self.create_subscription(LaserScan, "scan", self.process_scan, 10)
 
-        # DRIVE IN A SQAURE ########################################
-        # Initialize variables
+        # Initialize drive_square variables
         self.body_pos = None
         self.num_turns = 0
-
         self.pos = [0, 0, 0]
         self.travel_distance = 1.0  # 1 meter travel distance
         self.rotation = pi / 2
 
-        # PERSON FOLLOWING ###########################################
+        # Initialize person_follower variables
         self.degree_of_view = 15
-        self.max_range = 1.5  # The max distance we limit the Neato's IR to see
+        self.max_range = 1.0  # The max distance we limit the Neato's IR to see
         self.r_list = None
         self.distance_from_person = 0.6
+        
 
-        self.dt = 0.3
-        self.kP = 1.0
-        self.e_integral = 0
-
-        self.person_detect_state = True
-
-    # DRIVE IN A SQAURE ################
     def get_odom(self, msg):
         """Callback for handling odometry position
         Input:
@@ -74,10 +64,9 @@ class finiteStateControl(Node):
 
     def process_scan(self, msg):
         """
-        Callback for handling a wall detector sensor input.
+        Callback for handling the LiDAR scan points in the degree of view.
 
-        Args:
-
+        Args: msg (LaserScan): a LaserScan type message from the subscriber. Neato /scan topic.
         """
         r_list = []
         # Initialize variables
@@ -103,12 +92,12 @@ class finiteStateControl(Node):
                 abs(rel_pos[0]) - self.travel_distance < 0.001
                 and abs(rel_pos[1]) - self.travel_distance < 0.001
             ):
-                vel.linear.x = 0.15
+                vel.linear.x = 0.1
 
             # Turn to the right 90 degrees
             elif abs(rel_pos[2]) - self.rotation < 0.001:
                 vel.linear.x = 0.0
-                vel.angular.z = -0.3
+                vel.angular.z = -0.2
 
             else:
                 self.num_turns += 1
@@ -124,11 +113,15 @@ class finiteStateControl(Node):
         # Publish the Twist message to cmd_vel target
         self.publisher.publish(vel)
 
-    def run_loop_person(self):
-        """Tracks the relative position of the person and tracks them."""
+    def check_for_person(self):
+        """
+        Uses LaserScan from /scan topic to check if there is a person in the 30 degree of view
+        of the Neato.
 
-        # Create a Twist message to describe the robot motion
-        vel = Twist()
+        Returns:
+        None if there is no person detected by the LiDAR scan, or the polar coordinates of the calculated
+        center of mass of the person in the form of a tuple of floats.
+        """
         # Initialize sum variables and person_points dict
         sum_person_r = 0.0
         sum_person_angle_idx = 0.0
@@ -145,65 +138,68 @@ class finiteStateControl(Node):
                     sum_person_angle_idx += idx
 
             if len(person_points) == 0:  # prevent divide by 0 error
-                vel.linear.x = 0.0
-                vel.angular.z = 0.0
+                self.person_detect_state = False
             else:
-                # Estimate that the person is at the average of the distances and angles taken from the LiDAR scan
+                self.person_detect_state = True
                 average_r = sum_person_r / len(person_points)
                 average_person_angle_idx = (
                     sum_person_angle_idx / len(person_points) - self.degree_of_view
                 )  # to correct for idx starting at 0 instead of -15
-                polar_endpoint = (average_r, average_person_angle_idx)
-                print(f"Polar endpoint: {polar_endpoint}")
+                return average_r, average_person_angle_idx
+        return None
 
-                # print(f"delta angle {rel_pos[2] - polar_endpoint[1]}") # come back to this, why is delta angle 13.8 while polar_endpoint[1] is -13.5?
+    def run_loop_person(self):
+        """Tracks the relative position of the person and tracks them."""
 
-                if polar_endpoint[1] > 0.05:
+        # Create a Twist message to describe the robot motion
+        vel = Twist()
+        # Get the output from check_for_person() 
+        polar_endpoint = self.check_for_person()
+        if polar_endpoint is None: # No person
+            vel.linear.x = 0.0
+            vel.angular.z = 0.0
 
-                    # vel.angular.z = PI_control("angular", error, self.e_integral)
-                    # vel.linear.x = PI_control("linear", error, self.e_integral)
+        # There is a person detected by the LiDAR
+        else:
+            # Rotation to align heading with person
+            if polar_endpoint[1] > 0.05:
+                vel.angular.z = 0.1 # Person is on the left of the Neato
 
-                    vel.angular.z = 0.1
+            elif polar_endpoint[1] < -0.05:
+                vel.angular.z = -0.1 # Person is on the right of the Neato
 
-                elif polar_endpoint[1] < -0.05:
-                    vel.angular.z = -0.1
+            else:
+                vel.angular.z = 0.0 # Set the angular velocity to 0 if the person is approx. straight ahead
 
-                else:
-                    vel.angular.z = 0.0
-
-                if polar_endpoint[0] > self.distance_from_person:
-                    # speed = self.distance_from_person / self.kP
-                    # if speed > 0.25: speed = 0.25
-                    # vel.linear.x = speed
-                    vel.linear.x = 0.15
-                else:
-                    vel.linear.x = 0.0
-                    self.person_detect_state = False
+            # Linear movement to follow person 
+            if polar_endpoint[0] > self.distance_from_person: # Ensure the vehicle doesn't crash into the person. Maintain distance.
+                vel.linear.x = 0.15
+            else:
+                vel.linear.x = 0.0
 
         # Publish the Twist message to cmd_vel target
         self.publisher.publish(vel)
 
-    def run_loop(self):
-        self.run_loop_person()
+    def run_loop(self):  
+        self.check_for_person() # updates self.person_detect_state
         if self.node_state == "drive_square_node":
+            print("I am in drive_square")
             self.run_loop_square()
-            if self.num_turns == 4:
-                print("STOPPPPPPPPPPPPPPPP GO PERSON")
+            if self.person_detect_state is True:
                 self.node_state = "person_follower_node"
-                self.num_turns = 0
-        if self.node_state == "person_follower_node":
+        
+        elif self.node_state == "person_follower_node":
+            print("I am in person_follower")
             self.run_loop_person()
             if self.person_detect_state is False:
                 self.node_state = "drive_square_node"
 
-
 def main(args=None):
     """Initialize our node, run it, cleanup on shut down"""
     rclpy.init(args=args)  # Initialize communication with ROS
-    node = finiteStateControl()  # Create our Node
+    node = FiniteStateControl()  # Create our Node
     rclpy.spin(node)  # Run the Node until ready to shutdown
     rclpy.shutdown()  # cleanup
-
 
 if __name__ == "__main__":
     main()
