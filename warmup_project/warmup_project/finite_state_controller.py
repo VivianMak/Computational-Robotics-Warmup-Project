@@ -1,5 +1,7 @@
 """FINITE STATE CONTROL - This script is for publishing and subscribing to ROS msgs in Python."""
 
+from math import pi
+
 import rclpy
 from rclpy.node import Node
 
@@ -7,18 +9,19 @@ from tf_transformations import euler_from_quaternion
 
 from sensor_msgs.msg import LaserScan
 from geometry_msgs.msg import Twist
-from neato2_interfaces.msg import Bump
 from nav_msgs.msg import Odometry
-
-import math
-from math import pi
 
 # Importing functions
 from warmup_project.drive_square import convert_pose_to_xy_and_theta
-from warmup_project.person_follower import PI_control
 
 
 class finiteStateControl(Node):
+    """
+    This node combines the two behaviors: driving in a square and person following
+    The Neato will continously drive in a circle unless a person is detect.
+    As it is following hte person, if the person goes out of range, then the Neato will
+
+    """
 
     def __init__(self):
         """Initializes the class"""
@@ -29,7 +32,7 @@ class finiteStateControl(Node):
         self.create_timer(0.1, self.run_loop)
 
         # Control state
-        self.node_state = "drive_sqare_node"  # Start with driving in a square
+        self.node_state = "drive_square_node"  # Start with driving in a square
 
         # Initialize the publisher for cmd_vel
         self.publisher = self.create_publisher(Twist, "cmd_vel", 10)
@@ -58,6 +61,8 @@ class finiteStateControl(Node):
         self.dt = 0.3
         self.kP = 1.0
         self.e_integral = 0
+
+        self.person_detect_state = True
 
     # DRIVE IN A SQAURE ################
     def get_odom(self, msg):
@@ -173,20 +178,23 @@ class finiteStateControl(Node):
                     vel.linear.x = 0.15
                 else:
                     vel.linear.x = 0.0
+                    self.person_detect_state = False
 
         # Publish the Twist message to cmd_vel target
         self.publisher.publish(vel)
 
     def run_loop(self):
-        # self.run_loop_wall()
+        self.run_loop_person()
         if self.node_state == "drive_square_node":
             self.run_loop_square()
-        else:
+            if self.num_turns == 4:
+                print("STOPPPPPPPPPPPPPPPP GO PERSON")
+                self.node_state = "person_follower_node"
+                self.num_turns = 0
+        if self.node_state == "person_follower_node":
             self.run_loop_person()
-
-        if self.num_turns >= 4:
-            print("STOPPPPPPPPPPPPPPPP GO PERSON")
-            self.run_loop_person()
+            if self.person_detect_state is False:
+                self.node_state = "drive_square_node"
 
 
 def main(args=None):
