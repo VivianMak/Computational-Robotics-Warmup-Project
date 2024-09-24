@@ -1,9 +1,8 @@
-"""A node that drives the neato in a 1m by 1m square path."""
+"""A node that drives the Neato in a 1m by 1m square path."""
 
 import rclpy
 from tf_transformations import euler_from_quaternion
 from rclpy.node import Node
-from neato2_interfaces.msg import Bump
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from math import pi
