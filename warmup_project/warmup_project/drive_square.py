@@ -78,17 +78,17 @@ class DriveSquareNode(Node):
                 abs(rel_pos[0]) - self.travel_distance < 0.001
                 and abs(rel_pos[1]) - self.travel_distance < 0.001
             ):
-                vel.linear.x = 0.15
+                vel.linear.x = 0.1
 
             # Turn to the right 90 degrees
             elif abs(rel_pos[2]) - self.rotation < 0.001:
                 vel.linear.x = 0.0
-                vel.angular.z = -0.3
+                vel.angular.z = -0.2
 
             else:
-                self.num_turns += 1
+                self.num_turns += 1 # update num_turns
                 print("Num turns = ", self.num_turns)
-                self.body_pos = self.pos
+                self.body_pos = self.pos # update body_pos to be the starting point for the next segment
 
         else:
             # Finished driving in a square
