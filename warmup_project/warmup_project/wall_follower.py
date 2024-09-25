@@ -1,4 +1,4 @@
-"""WALL FOLLOWING - This script is for publishing and subscribing to ROS msgs in Python."""
+"""A node to control the heading of the robot to always be parallel with a wall."""
 
 import math
 
@@ -11,12 +11,18 @@ from geometry_msgs.msg import Twist
 
 class wallFollowing(Node):
     """
-    This node drives the robot along the wall in a parallel line
+    This node drives controls the heading of the robot to be
+    parallel to the wall.
+
+    This class currently only works when the robot is placed to the
+    right of the wall. The heading, however, can be facing towards
+    or away from the wall.
 
     Publishers:
         - Twist cmd_vel message: commands velocity and rotation
-    SubscribersL
-        - Laserscan scan message: gives the distance from a lidar scan
+    Subscribers:
+        - Laserscan scan message: gives the distance and angles of nearby objects
+        from a lidar scan
     """
 
     def __init__(self):
@@ -76,7 +82,7 @@ class wallFollowing(Node):
             self.heading = "away"
 
     def run_loop(self):
-        """Move robot towards detected wall"""
+        """Sets which direction to turn to correct angular error"""
 
         # Set the subscriber to be Twist type
         cmd_vel = Twist()
